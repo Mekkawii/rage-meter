@@ -1,4 +1,4 @@
-const CACHE = 'rage-meter-v1';
+const CACHE = 'rage-meter-v2';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

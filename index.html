@@ -239,6 +239,7 @@
   let audioCtx, analyser, micStream, timeData;
   let recognition = null;
   let baseline = 0, baselineSamples = 0, calibrating = true;
+  let noiseFloor = 0, voiceAvg = 0.08, loudFrames = 0;
   let lastLoudHit = 0;
   let breathTimer = null;
   let rafId = null;
@@ -254,17 +255,14 @@
   // ---------- swear detection ----------
   const SWEARS = ['fuck','fucking','fucked','fucker','motherfucker','shit','shitty','bullshit','bitch','bastard','asshole','ass','damn','dammit','goddamn','goddammit','crap','hell','dick','dickhead','piss','pissed','prick','douche','douchebag','wtf','stfu','screw','bloody','frigging','freaking','effing'];
   const SWEAR_SET = new Set(SWEARS);
-  const SWEAR_POINTS = 14;
-  const REACTIONS = ['💢 Heard that!','🙊 Oh my.','🌶️ Spicy!','📈 That counts!','🫢 Language!','🔥 Keep going…','😤 +14 rage'];
+  const SWEAR_POINTS = 18;
+  const REACTIONS = ['💢 Heard that!','🙊 Oh my.','🌶️ Spicy!','📈 That counts!','🫢 Language!','🔥 Keep going…','😤 +18 rage'];
 
-  function checkTranscript(text) {
+  function countSwears(text) {
     const words = text.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/);
     let hits = 0;
     for (const w of words) if (SWEAR_SET.has(w)) hits++;
-    if (hits > 0) {
-      addRage(hits * SWEAR_POINTS);
-      flashWord(REACTIONS[Math.floor(Math.random() * REACTIONS.length)]);
-    }
+    return hits;
   }
 
   let wordTimeout;
@@ -284,13 +282,19 @@
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
-    let processedFinal = 0;
+    let counted = {}; // swears already scored per result index (interim results repeat)
     recognition.onresult = (e) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) checkTranscript(e.results[i][0].transcript);
+        const hits = countSwears(e.results[i][0].transcript);
+        const prev = counted[i] || 0;
+        if (hits > prev) {
+          counted[i] = hits;
+          addRage((hits - prev) * SWEAR_POINTS);
+          flashWord(REACTIONS[Math.floor(Math.random() * REACTIONS.length)]);
+        }
       }
     };
-    recognition.onend = () => { if (session) { try { recognition.start(); } catch (_) {} } };
+    recognition.onend = () => { counted = {}; if (session) { try { recognition.start(); } catch (_) {} } };
     recognition.onerror = () => {};
     try { recognition.start(); } catch (_) {}
   }
@@ -309,6 +313,7 @@
     timeData = new Uint8Array(analyser.fftSize);
     src.connect(analyser);
     baseline = 0; baselineSamples = 0; calibrating = true;
+    noiseFloor = 0; voiceAvg = 0.08; loudFrames = 0;
     setTimeout(() => { calibrating = false; }, 1800);
   }
 
@@ -344,15 +349,23 @@
       const rms = getRms();
       if (calibrating) {
         baseline = (baseline * baselineSamples + rms) / (++baselineSamples);
+        noiseFloor = baseline;
+        voiceAvg = Math.max(0.08, baseline * 4);
       } else {
-        const threshold = Math.max(0.09, baseline * 3.2);
+        // room noise floor: adapts down fast, up very slowly
+        noiseFloor += (rms - noiseFloor) * (rms < noiseFloor ? 0.2 : 0.004);
+        // learn the user's normal speaking level so calm talk never scores
+        if (rms > Math.max(0.03, noiseFloor * 2.5)) voiceAvg += (rms - voiceAvg) * 0.02;
         $('vu-fill').style.width = Math.min(100, (rms / 0.35) * 100) + '%';
+        // yelling = sustained burst well above BOTH your own voice and the room
+        const yellAt = Math.max(0.17, noiseFloor * 8, voiceAvg * 2.4);
+        loudFrames = rms > yellAt ? loudFrames + 1 : 0;
         const now = performance.now();
-        if (rms > threshold && now - lastLoudHit > 350) {
+        if (loudFrames >= 5 && now - lastLoudHit > 500) {
           lastLoudHit = now;
-          const over = (rms - threshold) / threshold;
-          addRage(Math.min(8, 2 + over * 4));
-          if (rms > threshold * 1.6) flashWord('📣 WHOA, volume!');
+          const over = (rms - yellAt) / yellAt;
+          addRage(Math.min(6, 1.5 + over * 3));
+          if (over > 0.5) flashWord('📣 WHOA, volume!');
         }
       }
     }

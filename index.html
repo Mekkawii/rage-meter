@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Rage Meter 💢</title>
+<meta name="description" content="Swear and yell until the meter blows up, then cool down with box breathing.">
+<meta name="theme-color" content="#12101a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rage Meter">
+<style>
+  :root {
+    --bg: #12101a;
+    --panel: #1c1826;
+    --text: #f4f1fa;
+    --muted: #9a92b0;
+    --accent: #ff5d47;
+    --calm: #4fd1c5;
+    --meter-w: 92px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1200px 800px at 50% -10%, #241d33 0%, var(--bg) 60%);
+    color: var(--text);
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .screen {
+    position: absolute; inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+  }
+  .screen.active { display: flex; }
+
+  /* ---------- START SCREEN ---------- */
+  #start-screen h1 {
+    font-size: clamp(2.6rem, 9vw, 4.5rem);
+    letter-spacing: 2px;
+    font-weight: 900;
+    background: linear-gradient(180deg, #ffd166 0%, #ff5d47 55%, #d63031 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 4px 18px rgba(255, 93, 71, .35));
+  }
+  #start-screen .bomb { font-size: clamp(4rem, 16vw, 7rem); animation: bob 2.6s ease-in-out infinite; }
+  @keyframes bob { 0%,100% { transform: translateY(0) rotate(-4deg);} 50% { transform: translateY(-14px) rotate(4deg);} }
+  #start-screen p.tag { color: var(--muted); max-width: 420px; margin: 14px 0 34px; font-size: 1.05rem; line-height: 1.5; }
+  .big-btn {
+    font-size: 1.2rem; font-weight: 700;
+    padding: 18px 44px;
+    border: none; border-radius: 999px;
+    color: #fff; cursor: pointer;
+    background: linear-gradient(135deg, #ff5d47, #d63031);
+    box-shadow: 0 8px 30px rgba(214, 48, 49, .45), inset 0 1px 0 rgba(255,255,255,.25);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .big-btn:hover { transform: translateY(-2px) scale(1.03); }
+  .big-btn:active { transform: scale(.97); }
+  .hint { margin-top: 18px; color: var(--muted); font-size: .85rem; }
+  .privacy { position: absolute; bottom: 16px; color: #5f5876; font-size: .75rem; max-width: 480px; }
+
+  /* ---------- SESSION SCREEN ---------- */
+  #session-screen { justify-content: flex-start; padding-top: 4vh; }
+  #session-screen h2 { font-size: 1.3rem; letter-spacing: 3px; color: var(--muted); font-weight: 600; }
+  .meter-zone { display: flex; align-items: flex-end; gap: 34px; margin-top: 3vh; flex: 1; max-height: 58vh; }
+
+  .thermo {
+    position: relative;
+    width: var(--meter-w);
+    height: 100%;
+    border-radius: 999px;
+    background: #241f31;
+    border: 3px solid #35304a;
+    overflow: hidden;
+    box-shadow: inset 0 4px 18px rgba(0,0,0,.55);
+  }
+  .thermo-fill {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 0%;
+    background: linear-gradient(180deg, #ff3b2f 0%, #ff7847 40%, #ffc24b 75%, #ffe066 100%);
+    background-size: 100% 400%;
+    background-position: bottom;
+    transition: height .25s ease-out;
+    border-radius: 0 0 999px 999px;
+  }
+  .thermo.raging { animation: tremble .12s linear infinite; }
+  @keyframes tremble { 0%{transform:translate(0,0);} 25%{transform:translate(-2px,1px);} 50%{transform:translate(2px,-1px);} 75%{transform:translate(-1px,-2px);} 100%{transform:translate(1px,2px);} }
+  .thermo-face {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 8px; font-size: 2rem; transition: bottom .25s ease-out;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,.5));
+  }
+
+  .side-info { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; min-width: 150px; }
+  .rage-pct { font-size: 3.4rem; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
+  .rage-label { color: var(--muted); font-size: .85rem; letter-spacing: 2px; }
+  .status-word {
+    min-height: 2.2em; font-size: 1.05rem; font-weight: 700; color: #ffd166;
+    opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .2s;
+  }
+  .status-word.show { opacity: 1; transform: translateY(0); }
+
+  .vu { width: 150px; height: 10px; background: #241f31; border-radius: 999px; overflow: hidden; border: 1px solid #35304a; }
+  .vu-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--calm), #ffd166, var(--accent)); transition: width .1s linear; }
+  .vu-label { color: var(--muted); font-size: .72rem; letter-spacing: 1px; margin-top: -8px; }
+
+  .listening-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); margin-right: 7px; animation: pulse 1.4s ease infinite; }
+  @keyframes pulse { 0%,100% { opacity: .35; transform: scale(.8);} 50% { opacity: 1; transform: scale(1.15);} }
+
+  .end-btn {
+    margin: 22px 0 10px;
+    background: none; border: 1.5px solid #453e5e; color: var(--muted);
+    padding: 12px 30px; border-radius: 999px; font-size: .95rem; cursor: pointer;
+    transition: border-color .2s, color .2s;
+  }
+  .end-btn:hover { border-color: var(--muted); color: var(--text); }
+
+  /* ---------- EXPLOSION ---------- */
+  #explosion-screen { background: transparent; z-index: 50; pointer-events: none; }
+  .boom-flash {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 55%, #fff7d6 0%, #ffd166 22%, #ff5d47 48%, rgba(214,48,49,0) 75%);
+    opacity: 0;
+  }
+  .boom-flash.go { animation: flash .9s ease-out forwards; }
+  @keyframes flash { 0% { opacity: 0; transform: scale(.3);} 15% { opacity: 1; transform: scale(1);} 100% { opacity: 0; transform: scale(1.9);} }
+  .boom-text {
+    font-size: clamp(3rem, 14vw, 7rem); font-weight: 900;
+    color: #fff; text-shadow: 0 0 40px #ffb347, 0 6px 0 #d63031;
+    opacity: 0; transform: scale(.2) rotate(-8deg);
+  }
+  .boom-text.go { animation: boomtext 1.6s cubic-bezier(.2,1.6,.4,1) forwards; }
+  @keyframes boomtext { 0% { opacity: 0; transform: scale(.2) rotate(-8deg);} 30% { opacity: 1; transform: scale(1.15) rotate(3deg);} 55% { transform: scale(1) rotate(0);} 100% { opacity: 1; transform: scale(1);} }
+  body.shaking { animation: bigshake .5s linear 3; }
+  @keyframes bigshake { 0%{transform:translate(0,0);} 20%{transform:translate(-10px,6px);} 40%{transform:translate(9px,-7px);} 60%{transform:translate(-8px,-5px);} 80%{transform:translate(7px,6px);} 100%{transform:translate(0,0);} }
+  .particle { position: fixed; font-size: 1.8rem; left: 50%; top: 55%; pointer-events: none; z-index: 60; }
+
+  /* ---------- BREATHING ---------- */
+  #breath-screen { background: radial-gradient(1000px 700px at 50% 20%, #16303a 0%, #0e1620 65%); }
+  #breath-screen h2 { font-weight: 600; color: #bfeee8; letter-spacing: 1px; font-size: 1.35rem; }
+  #breath-screen .sub { color: #6f93a3; margin-top: 6px; font-size: .95rem; }
+  .breath-stage { position: relative; width: min(64vw, 300px); height: min(64vw, 300px); margin: 5vh 0 3vh; display: flex; align-items: center; justify-content: center; }
+  .breath-ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px dashed rgba(79, 209, 197, .35);
+  }
+  .breath-circle {
+    width: 52%; height: 52%; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #7fe3d8, var(--calm) 55%, #2b8f88);
+    box-shadow: 0 0 60px rgba(79, 209, 197, .45);
+    transform: scale(.72);
+  }
+  .breath-phase { font-size: 1.6rem; font-weight: 700; color: #eafffb; min-height: 2.2em; }
+  .breath-count { font-size: 3rem; font-weight: 900; color: var(--calm); font-variant-numeric: tabular-nums; min-height: 1.2em; }
+  .breath-cycles { color: #6f93a3; font-size: .9rem; margin-top: 8px; }
+  .calm-btn {
+    margin-top: 26px;
+    background: linear-gradient(135deg, #4fd1c5, #2b8f88);
+    box-shadow: 0 8px 30px rgba(79, 209, 197, .35), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  .error-box {
+    background: #3a1f28; border: 1px solid #7c2d3e; color: #ffb3c0;
+    border-radius: 12px; padding: 14px 18px; margin-top: 20px; font-size: .9rem; max-width: 420px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- START -->
+<section id="start-screen" class="screen active">
+  <div class="bomb">🧨</div>
+  <h1>RAGE METER</h1>
+  <p class="tag">Yell. Curse. Let it out. The meter fills every time you swear or raise your voice — until it <strong>blows up</strong> and walks you back down with a breathing exercise.</p>
+  <button class="big-btn" id="start-btn">💢 START RAGE SESSION</button>
+  <p class="hint">Needs microphone access. Works best in Chrome.</p>
+  <div class="error-box" id="error-box"></div>
+  <p class="privacy">🔒 Volume analysis happens entirely on your device. Speech recognition uses your browser's built-in engine. Nothing is stored or sent to us.</p>
+</section>
+
+<!-- SESSION -->
+<section id="session-screen" class="screen">
+  <h2><span class="listening-dot"></span>LISTENING…</h2>
+  <div class="meter-zone">
+    <div class="thermo" id="thermo">
+      <div class="thermo-fill" id="thermo-fill"></div>
+      <div class="thermo-face" id="thermo-face">😌</div>
+    </div>
+    <div class="side-info">
+      <div>
+        <div class="rage-pct" id="rage-pct">0%</div>
+        <div class="rage-label">RAGE LEVEL</div>
+      </div>
+      <div class="status-word" id="status-word"></div>
+      <div class="vu"><div class="vu-fill" id="vu-fill"></div></div>
+      <div class="vu-label">VOICE VOLUME</div>
+    </div>
+  </div>
+  <button class="end-btn" id="end-btn">End session</button>
+</section>
+
+<!-- EXPLOSION -->
+<section id="explosion-screen" class="screen">
+  <div class="boom-flash" id="boom-flash"></div>
+  <div class="boom-text" id="boom-text">💥 KA-BOOM!</div>
+</section>
+
+<!-- BREATHING -->
+<section id="breath-screen" class="screen">
+  <h2>Okay… that was a lot. 😮‍💨</h2>
+  <p class="sub">Box breathing — follow the circle. 4 seconds each side.</p>
+  <div class="breath-stage">
+    <div class="breath-ring"></div>
+    <div class="breath-circle" id="breath-circle"></div>
+  </div>
+  <div class="breath-phase" id="breath-phase">Get ready…</div>
+  <div class="breath-count" id="breath-count"></div>
+  <div class="breath-cycles" id="breath-cycles"></div>
+  <button class="big-btn calm-btn" id="calm-btn">😌 I'm calm now</button>
+</section>
+
+<script>
+(() => {
+  // ---------- state ----------
+  const MAX = 100;
+  let rage = 0;
+  let session = false;
+  let audioCtx, analyser, micStream, timeData;
+  let recognition = null;
+  let baseline = 0, baselineSamples = 0, calibrating = true;
+  let lastLoudHit = 0;
+  let breathTimer = null;
+  let rafId = null;
+
+  const $ = id => document.getElementById(id);
+  const screens = { start: $('start-screen'), session: $('session-screen'), boom: $('explosion-screen'), breath: $('breath-screen') };
+
+  function show(name) {
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[name].classList.add('active');
+  }
+
+  // ---------- swear detection ----------
+  const SWEARS = ['fuck','fucking','fucked','fucker','motherfucker','shit','shitty','bullshit','bitch','bastard','asshole','ass','damn','dammit','goddamn','goddammit','crap','hell','dick','dickhead','piss','pissed','prick','douche','douchebag','wtf','stfu','screw','bloody','frigging','freaking','effing'];
+  const SWEAR_SET = new Set(SWEARS);
+  const SWEAR_POINTS = 14;
+  const REACTIONS = ['💢 Heard that!','🙊 Oh my.','🌶️ Spicy!','📈 That counts!','🫢 Language!','🔥 Keep going…','😤 +14 rage'];
+
+  function checkTranscript(text) {
+    const words = text.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/);
+    let hits = 0;
+    for (const w of words) if (SWEAR_SET.has(w)) hits++;
+    if (hits > 0) {
+      addRage(hits * SWEAR_POINTS);
+      flashWord(REACTIONS[Math.floor(Math.random() * REACTIONS.length)]);
+    }
+  }
+
+  let wordTimeout;
+  function flashWord(msg) {
+    const el = $('status-word');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(wordTimeout);
+    wordTimeout = setTimeout(() => el.classList.remove('show'), 1400);
+  }
+
+  // ---------- speech recognition ----------
+  function startRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return; // volume detection still works without it
+    recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    let processedFinal = 0;
+    recognition.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) checkTranscript(e.results[i][0].transcript);
+      }
+    };
+    recognition.onend = () => { if (session) { try { recognition.start(); } catch (_) {} } };
+    recognition.onerror = () => {};
+    try { recognition.start(); } catch (_) {}
+  }
+
+  function stopRecognition() {
+    if (recognition) { recognition.onend = null; try { recognition.stop(); } catch (_) {} recognition = null; }
+  }
+
+  // ---------- mic volume ----------
+  async function startAudio() {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = audioCtx.createMediaStreamSource(micStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    timeData = new Uint8Array(analyser.fftSize);
+    src.connect(analyser);
+    baseline = 0; baselineSamples = 0; calibrating = true;
+    setTimeout(() => { calibrating = false; }, 1800);
+  }
+
+  function stopAudio() {
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (audioCtx) audioCtx.close();
+    micStream = null; audioCtx = null; analyser = null;
+  }
+
+  function getRms() {
+    analyser.getByteTimeDomainData(timeData);
+    let sum = 0;
+    for (let i = 0; i < timeData.length; i++) {
+      const v = (timeData[i] - 128) / 128;
+      sum += v * v;
+    }
+    return Math.sqrt(sum / timeData.length);
+  }
+
+  // ---------- rage ----------
+  function addRage(n) {
+    if (!session) return;
+    rage = Math.min(MAX, rage + n);
+    if (rage >= MAX) explode();
+  }
+
+  const FACES = [[15,'😌'],[35,'😠'],[60,'😡'],[85,'🤬'],[101,'☢️']];
+  function faceFor(r) { for (const [t, f] of FACES) if (r < t) return f; return '☢️'; }
+
+  function tick() {
+    if (!session) return;
+    if (analyser) {
+      const rms = getRms();
+      if (calibrating) {
+        baseline = (baseline * baselineSamples + rms) / (++baselineSamples);
+      } else {
+        const threshold = Math.max(0.09, baseline * 3.2);
+        $('vu-fill').style.width = Math.min(100, (rms / 0.35) * 100) + '%';
+        const now = performance.now();
+        if (rms > threshold && now - lastLoudHit > 350) {
+          lastLoudHit = now;
+          const over = (rms - threshold) / threshold;
+          addRage(Math.min(8, 2 + over * 4));
+          if (rms > threshold * 1.6) flashWord('📣 WHOA, volume!');
+        }
+      }
+    }
+    // slow cool-down when behaving
+    rage = Math.max(0, rage - 0.012);
+
+    const pct = Math.round(rage);
+    $('rage-pct').textContent = pct + '%';
+    $('thermo-fill').style.height = rage + '%';
+    const face = $('thermo-face');
+    face.textContent = faceFor(rage);
+    face.style.bottom = `calc(${Math.min(rage, 92)}% )`;
+    $('thermo').classList.toggle('raging', rage > 70);
+    document.documentElement.style.setProperty('--accent', rage > 70 ? '#ff3b2f' : '#ff5d47');
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  // ---------- session ----------
+  async function startSession() {
+    $('error-box').style.display = 'none';
+    try {
+      await startAudio();
+    } catch (err) {
+      const box = $('error-box');
+      box.textContent = '🎙️ Could not access the microphone: ' + err.message + ' — check browser permissions and try again.';
+      box.style.display = 'block';
+      return;
+    }
+    rage = 0;
+    session = true;
+    show('session');
+    startRecognition();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function endSession(toScreen = 'start') {
+    session = false;
+    cancelAnimationFrame(rafId);
+    stopRecognition();
+    stopAudio();
+    show(toScreen);
+  }
+
+  // ---------- explosion ----------
+  function explode() {
+    if (!session) return;
+    session = false;
+    cancelAnimationFrame(rafId);
+    stopRecognition();
+    stopAudio();
+
+    show('boom');
+    document.body.classList.add('shaking');
+    const flash = $('boom-flash'), text = $('boom-text');
+    flash.classList.remove('go'); text.classList.remove('go');
+    void flash.offsetWidth; // restart animations
+    flash.classList.add('go'); text.classList.add('go');
+    spawnParticles();
+
+    setTimeout(() => {
+      document.body.classList.remove('shaking');
+      startBreathing();
+    }, 2600);
+  }
+
+  const EMOJI = ['💥','🔥','😤','💢','⚡','🌋','🧨','☄️','😡','🤬'];
+  function spawnParticles() {
+    for (let i = 0; i < 36; i++) {
+      const p = document.createElement('span');
+      p.className = 'particle';
+      p.textContent = EMOJI[Math.floor(Math.random() * EMOJI.length)];
+      document.body.appendChild(p);
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 140 + Math.random() * Math.max(innerWidth, innerHeight) * 0.55;
+      const dx = Math.cos(angle) * dist, dy = Math.sin(angle) * dist;
+      p.animate([
+        { transform: 'translate(-50%,-50%) scale(.4) rotate(0deg)', opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${1 + Math.random()}) rotate(${(Math.random()-.5)*720}deg)`, opacity: 0 }
+      ], { duration: 1400 + Math.random() * 900, easing: 'cubic-bezier(.1,.8,.3,1)' })
+       .onfinish = () => p.remove();
+    }
+  }
+
+  // ---------- breathing ----------
+  const PHASES = [
+    { name: 'Breathe in…',  icon: '🫁', scale: 1.35, secs: 4 },
+    { name: 'Hold…',        icon: '⏸️', scale: 1.35, secs: 4 },
+    { name: 'Breathe out…', icon: '😮‍💨', scale: 0.72, secs: 4 },
+    { name: 'Hold…',        icon: '⏸️', scale: 0.72, secs: 4 },
+  ];
+
+  function startBreathing() {
+    show('breath');
+    let phaseIdx = 0, cycles = 0, count = PHASES[0].secs;
+    const circle = $('breath-circle');
+
+    function applyPhase() {
+      const ph = PHASES[phaseIdx];
+      $('breath-phase').textContent = ph.icon + ' ' + ph.name;
+      circle.style.transition = `transform ${ph.secs}s cubic-bezier(.4,0,.4,1)`;
+      circle.style.transform = `scale(${ph.scale})`;
+      count = ph.secs;
+      $('breath-count').textContent = count;
+    }
+
+    applyPhase();
+    clearInterval(breathTimer);
+    breathTimer = setInterval(() => {
+      count--;
+      if (count <= 0) {
+        phaseIdx = (phaseIdx + 1) % PHASES.length;
+        if (phaseIdx === 0) {
+          cycles++;
+          $('breath-cycles').textContent = `${cycles} cycle${cycles > 1 ? 's' : ''} done — nice. 🌊`;
+        }
+        applyPhase();
+      } else {
+        $('breath-count').textContent = count;
+      }
+    }, 1000);
+  }
+
+  function stopBreathing() {
+    clearInterval(breathTimer);
+    show('start');
+  }
+
+  // ---------- wire up ----------
+  $('start-btn').addEventListener('click', startSession);
+  $('end-btn').addEventListener('click', () => endSession('start'));
+  $('calm-btn').addEventListener('click', stopBreathing);
+
+  // PWA offline support
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+
+  // debug hooks for testing without a mic
+  window.__rage = {
+    add: addRage,
+    get level() { return rage; },
+    explode,
+    startFake() { rage = 0; session = true; show('session'); rafId = requestAnimationFrame(tick); },
+    breathe: startBreathing,
+  };
+})();
+</script>
+</body>
+</html>

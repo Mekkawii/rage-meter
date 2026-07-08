@@ -111,8 +111,9 @@
   }
   .status-word.show { opacity: 1; transform: translateY(0); }
 
-  .vu { width: 150px; height: 10px; background: #241f31; border-radius: 999px; overflow: hidden; border: 1px solid #35304a; }
+  .vu { position: relative; width: 150px; height: 10px; background: #241f31; border-radius: 999px; overflow: hidden; border: 1px solid #35304a; }
   .vu-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--calm), #ffd166, var(--accent)); transition: width .1s linear; }
+  .vu-mark { position: absolute; top: -2px; bottom: -2px; width: 3px; left: 60%; background: #fff; opacity: .85; border-radius: 2px; }
   .vu-label { color: var(--muted); font-size: .72rem; letter-spacing: 1px; margin-top: -8px; }
 
   .listening-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); margin-right: 7px; animation: pulse 1.4s ease infinite; }
@@ -203,8 +204,8 @@
         <div class="rage-label">RAGE LEVEL</div>
       </div>
       <div class="status-word" id="status-word"></div>
-      <div class="vu"><div class="vu-fill" id="vu-fill"></div></div>
-      <div class="vu-label">VOICE VOLUME</div>
+      <div class="vu"><div class="vu-fill" id="vu-fill"></div><div class="vu-mark" id="vu-mark"></div></div>
+      <div class="vu-label">VOICE VOLUME · YELL PAST THE LINE</div>
     </div>
   </div>
   <button class="end-btn" id="end-btn">End session</button>
@@ -305,7 +306,12 @@
 
   // ---------- mic volume ----------
   async function startAudio() {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // raw mic: browser AGC/noise-suppression flattens yelling down to speech level
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    } catch (_) {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const src = audioCtx.createMediaStreamSource(micStream);
     analyser = audioCtx.createAnalyser();
@@ -354,14 +360,15 @@
       } else {
         // room noise floor: adapts down fast, up very slowly
         noiseFloor += (rms - noiseFloor) * (rms < noiseFloor ? 0.2 : 0.004);
-        // learn the user's normal speaking level so calm talk never scores
-        if (rms > Math.max(0.03, noiseFloor * 2.5)) voiceAvg += (rms - voiceAvg) * 0.02;
-        $('vu-fill').style.width = Math.min(100, (rms / 0.35) * 100) + '%';
         // yelling = sustained burst well above BOTH your own voice and the room
-        const yellAt = Math.max(0.17, noiseFloor * 8, voiceAvg * 2.4);
+        const yellAt = Math.max(0.12, noiseFloor * 6, voiceAvg * 1.9);
+        // learn normal speaking level from non-yelling speech only
+        if (rms > Math.max(0.03, noiseFloor * 2.5) && rms < yellAt) voiceAvg += (rms - voiceAvg) * 0.02;
+        $('vu-fill').style.width = Math.min(100, (rms / 0.35) * 100) + '%';
+        $('vu-mark').style.left = Math.min(97, (yellAt / 0.35) * 100) + '%';
         loudFrames = rms > yellAt ? loudFrames + 1 : 0;
         const now = performance.now();
-        if (loudFrames >= 5 && now - lastLoudHit > 500) {
+        if (loudFrames >= 3 && now - lastLoudHit > 500) {
           lastLoudHit = now;
           const over = (rms - yellAt) / yellAt;
           addRage(Math.min(6, 1.5 + over * 3));
